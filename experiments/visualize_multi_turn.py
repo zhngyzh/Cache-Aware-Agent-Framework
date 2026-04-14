@@ -50,7 +50,7 @@ def visualize_multi_turn_results(results_file: Path) -> None:
         config_data = configs[config_name]
         summary = config_data["summary"]
         metrics = summary["aggregate_total_metrics"]
-        tool_obs = summary.get("aggregate_tool_observability", {})
+        tool_obs = summary.get("aggregate_tool_observability", {}).get("metrics", {})
 
         hit_rate = format_percent_with_std(
             metrics["cache_hit_rate"]["mean"],
@@ -73,7 +73,7 @@ def visualize_multi_turn_results(results_file: Path) -> None:
         config_data = configs[config_name]
         summary = config_data["summary"]
         metrics = summary["aggregate_total_metrics"]
-        tool_obs = summary.get("aggregate_tool_observability", {})
+        tool_obs = summary.get("aggregate_tool_observability", {}).get("metrics", {})
 
         print()
         print(f"## {config_name}")

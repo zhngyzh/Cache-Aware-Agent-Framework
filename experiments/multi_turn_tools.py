@@ -127,7 +127,7 @@ def print_comparison_summary(results: Dict[str, Any]) -> None:
     for config_name, config_data in configs.items():
         summary = config_data["summary"]
         metrics = summary["aggregate_total_metrics"]
-        tool_obs = summary["aggregate_tool_observability"]
+        tool_obs = summary["aggregate_tool_observability"]["metrics"]
 
         hit_rate = f"{metrics['cache_hit_rate']['mean']:.2%} +/- {metrics['cache_hit_rate']['std']:.2%}"
         cost = f"${metrics['cost']['mean']:.4f} +/- ${metrics['cost']['std']:.4f}"

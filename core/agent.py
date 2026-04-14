@@ -62,7 +62,7 @@ class CacheMetrics:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class SessionConfig:
     """
     Session-scoped latched configuration.
