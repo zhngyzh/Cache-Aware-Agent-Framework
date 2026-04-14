@@ -26,11 +26,12 @@
 - Append-only 消息历史管理
 - 确定性 `tool schema` 缓存与序列化
 - Session 配置锁存，避免会话中切换关键参数
-- 最小可用的 tool-calling loop
+- 完整的 tool-calling loop（支持多轮工具编排）
 - `schema-only` / `execution-enabled` 双轨实验设计
 - 重复实验、聚合统计与结果可视化
 - 工具执行层路径安全与结构化错误返回
 - tool loop 可观测性：执行摘要、错误码、截断标记
+- 多轮工具编排实验（对比不同 max_tool_rounds 配置）
 
 当前支持的确定性本地工具：
 
@@ -42,7 +43,6 @@
 
 当前未完成：
 
-- 多轮复杂工具编排
 - 面向生产场景的 agent 容错与调度
 
 ## 四层缓存友好架构
@@ -231,7 +231,9 @@ uv pip install -r requirements.txt
 ```bash
 python experiments/baseline.py --turns 5 --seed 42 --repeats 5
 python experiments/cache_busters.py --track all --turns 5 --seed 42 --repeats 5
+python experiments/multi_turn_tools.py --turns 5 --seed 42 --repeats 5
 python experiments/visualize_results.py
+python experiments/visualize_multi_turn.py results/multi_turn_tools_results.json
 ```
 
 ### 工程验证 / Smoke Test
@@ -239,7 +241,9 @@ python experiments/visualize_results.py
 ```bash
 python experiments/baseline.py --turns 1 --seed 42 --repeats 1 --output-dir results/dev_smoke
 python experiments/cache_busters.py --track all --turns 1 --seed 42 --repeats 1 --output-dir results/dev_smoke
+python experiments/multi_turn_tools.py --turns 2 --seed 42 --repeats 2 --output-dir results/dev_smoke
 python experiments/visualize_results.py --results-dir results/dev_smoke
+python experiments/visualize_multi_turn.py results/dev_smoke/multi_turn_tools_results.json
 ```
 
 ### 单独运行某一轨道
@@ -247,6 +251,7 @@ python experiments/visualize_results.py --results-dir results/dev_smoke
 ```bash
 python experiments/cache_busters.py --track schema_only --turns 5 --seed 42 --repeats 5
 python experiments/cache_busters.py --track execution_enabled --turns 5 --seed 42 --repeats 5
+python experiments/multi_turn_tools.py --turns 5 --seed 42 --repeats 5 --max-rounds 1 2 3
 ```
 
 ### 测试

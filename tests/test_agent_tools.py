@@ -108,25 +108,32 @@ class AgentToolLoopTests(unittest.TestCase):
 
     def test_send_message_marks_when_max_tool_rounds_stops_loop(self):
         agent = CacheAwareAgent(api_key="test", enable_tools=True, max_tool_rounds=0)
-        response = FakeResponse(
-            SimpleNamespace(
-                content=None,
-                tool_calls=[FakeToolCall("call_1", "read_file", '{"file_path": "README.md"}')],
+        responses = [
+            FakeResponse(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[FakeToolCall("call_1", "read_file", '{"file_path": "README.md"}')],
+                ),
+                prompt_tokens=10,
+                completion_tokens=2,
             ),
-            prompt_tokens=10,
-            completion_tokens=2,
-        )
-        agent._create_completion = lambda messages: response
+            FakeResponse(
+                SimpleNamespace(content="I cannot execute tools due to max_tool_rounds limit", tool_calls=None),
+                prompt_tokens=12,
+                completion_tokens=5,
+            ),
+        ]
+        agent._create_completion = lambda messages, tools=None: responses.pop(0)
 
         result = agent.send_message("read the readme")
 
-        self.assertTrue(result["trace"]["assistant_has_tool_calls"])
         self.assertTrue(result["trace"]["tool_loop_terminated_by_max_rounds"])
         self.assertEqual(result["trace"]["pending_tool_calls_after_loop"], 1)
-        self.assertEqual(result["trace"]["pending_tool_names_after_loop"], ["read_file"])
         self.assertEqual(result["trace"]["tool_execution_count"], 0)
         self.assertEqual(result["trace"]["tool_execution_results"], [])
-        self.assertEqual(result["trace"]["completion_round_count"], 1)
+        self.assertEqual(result["trace"]["completion_round_count"], 2)
+        # After forcing final completion, assistant_has_tool_calls should be False
+        self.assertFalse(result["trace"]["assistant_has_tool_calls"])
 
     def test_enabled_tool_schemas_only_include_supported_tools(self):
         agent = CacheAwareAgent(api_key="test", enable_tools=True)

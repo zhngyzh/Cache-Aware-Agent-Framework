@@ -149,7 +149,7 @@ class CacheAwareAgent:
                 schemas.append(schema)
         return schemas
 
-    def _create_completion(self, messages: List[Dict[str, Any]]) -> Any:
+    def _create_completion(self, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]] | None = None) -> Any:
         request_kwargs: Dict[str, Any] = {
             "model": self.session_config.model,
             "messages": messages,
@@ -157,7 +157,11 @@ class CacheAwareAgent:
             "max_tokens": self.session_config.max_tokens,
         }
 
-        enabled_schemas = self._get_enabled_tool_schemas() if self.enable_tools else []
+        if tools is None:
+            enabled_schemas = self._get_enabled_tool_schemas() if self.enable_tools else []
+        else:
+            enabled_schemas = tools
+
         if enabled_schemas:
             request_kwargs["tools"] = enabled_schemas
 
@@ -306,8 +310,12 @@ class CacheAwareAgent:
         completion_rounds = 1
         total_tool_calls = len(assistant_message.tool_calls or [])
         tool_names_called.extend(self._get_tool_call_name(tool_call) for tool_call in (assistant_message.tool_calls or []))
+
+        # Tool execution loop
         while self.enable_tools and assistant_message.tool_calls and tool_rounds < self.max_tool_rounds:
             tool_execution_results.extend(self._execute_tool_calls(assistant_message.tool_calls))
+            tool_rounds += 1
+
             follow_up_messages = self._build_api_messages()
             follow_up_response = self._create_completion(follow_up_messages)
             assistant_message = follow_up_response.choices[0].message
@@ -317,7 +325,6 @@ class CacheAwareAgent:
             tool_names_called.extend(
                 self._get_tool_call_name(tool_call) for tool_call in (assistant_message.tool_calls or [])
             )
-            tool_rounds += 1
             completion_rounds += 1
 
         pending_tool_calls_after_loop = len(assistant_message.tool_calls or [])
@@ -326,6 +333,20 @@ class CacheAwareAgent:
             and assistant_message.tool_calls
             and tool_rounds >= self.max_tool_rounds
         )
+
+        # If we hit max_tool_rounds and still have pending tool calls, we need to force
+        # a final completion without tools to avoid leaving the conversation in an invalid state
+        if tool_loop_terminated_by_max_rounds:
+            # Remove the last assistant message with pending tool calls
+            self.message_manager._messages.pop()
+
+            # Request a final response without tool schemas to force text completion
+            final_messages = self._build_api_messages()
+            final_response = self._create_completion(final_messages, tools=[])
+            assistant_message = final_response.choices[0].message
+            self._append_assistant_message(assistant_message)
+            total_metrics = total_metrics + self._build_metrics(final_response)
+            completion_rounds += 1
 
         self._record_metrics(total_metrics, verbose=verbose)
 
