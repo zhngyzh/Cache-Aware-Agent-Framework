@@ -136,9 +136,15 @@ class LocalToolExecutor:
             )
 
 
-def _require_string_argument(arguments: dict[str, Any], key: str) -> str:
+def _require_string_argument(arguments: dict[str, Any], key: str, allow_empty: bool = False) -> str:
     value = arguments.get(key)
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str):
+        raise ToolExecutionError(
+            code="invalid_arguments",
+            message=f"Expected a string argument: {key}",
+            details={"argument": key, "received_type": type(value).__name__},
+        )
+    if not allow_empty and not value.strip():
         raise ToolExecutionError(
             code="invalid_arguments",
             message=f"Expected a non-empty string argument: {key}",
@@ -234,7 +240,7 @@ def _list_directory_handler(arguments: dict[str, Any], executor: LocalToolExecut
 
 def _write_file_handler(arguments: dict[str, Any], executor: LocalToolExecutor) -> dict[str, Any]:
     file_path = _require_string_argument(arguments, "file_path")
-    content = _require_string_argument(arguments, "content")
+    content = _require_string_argument(arguments, "content", allow_empty=True)
 
     path = executor.resolve_workspace_path(file_path)
     executor.ensure_within_workspace(path)

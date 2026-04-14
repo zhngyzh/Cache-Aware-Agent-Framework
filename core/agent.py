@@ -327,7 +327,11 @@ class CacheAwareAgent:
             )
             completion_rounds += 1
 
-        pending_tool_calls_after_loop = len(assistant_message.tool_calls or [])
+        # Capture pending state before any forced completion
+        pending_tool_calls_before_forced_completion = len(assistant_message.tool_calls or [])
+        pending_tool_names_before_forced_completion = [
+            self._get_tool_call_name(tool_call) for tool_call in (assistant_message.tool_calls or [])
+        ]
         tool_loop_terminated_by_max_rounds = bool(
             self.enable_tools
             and assistant_message.tool_calls
@@ -335,10 +339,23 @@ class CacheAwareAgent:
         )
 
         # If we hit max_tool_rounds and still have pending tool calls, we need to force
-        # a final completion without tools to avoid leaving the conversation in an invalid state
+        # a final completion without tools to avoid leaving the conversation in an invalid state.
+        # Instead of popping (which violates append-only), we append dummy tool responses
+        # and request one more completion.
         if tool_loop_terminated_by_max_rounds:
-            # Remove the last assistant message with pending tool calls
-            self.message_manager._messages.pop()
+            # Append dummy tool responses for all pending tool calls
+            for tool_call in assistant_message.tool_calls:
+                self._append_tool_message(
+                    tool_call_id=self._get_tool_call_id(tool_call),
+                    tool_name=self._get_tool_call_name(tool_call),
+                    content=json.dumps({
+                        "status": "skipped",
+                        "error": {
+                            "code": "max_tool_rounds_exceeded",
+                            "message": f"Tool execution skipped: max_tool_rounds={self.max_tool_rounds} reached"
+                        }
+                    })
+                )
 
             # Request a final response without tool schemas to force text completion
             final_messages = self._build_api_messages()
@@ -380,10 +397,8 @@ class CacheAwareAgent:
             "tool_execution_results": tool_execution_results,
             "tool_execution_count": len(tool_execution_results),
             "tool_loop_terminated_by_max_rounds": tool_loop_terminated_by_max_rounds,
-            "pending_tool_calls_after_loop": pending_tool_calls_after_loop,
-            "pending_tool_names_after_loop": [
-                self._get_tool_call_name(tool_call) for tool_call in (assistant_message.tool_calls or [])
-            ],
+            "pending_tool_calls_after_loop": pending_tool_calls_before_forced_completion,
+            "pending_tool_names_after_loop": pending_tool_names_before_forced_completion,
             "completion_round_count": completion_rounds,
             "assistant_response_chars": len(assistant_message.content or ""),
             "assistant_response_preview": (assistant_message.content or "")[:120],
